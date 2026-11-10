@@ -162,6 +162,31 @@ function frame(now) {
   renderer.render(scene, cam);
 }
 requestAnimationFrame(frame);
+
+
+// musik latar (Web Audio, tanpa kontrol media di notifikasi)
+var ac;
+async function startAudio() {
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    await ac.resume();
+    var buf = await (await fetch('lib/razor.mp3')).arrayBuffer();
+    var data = await ac.decodeAudioData(buf);
+    var src = ac.createBufferSource();
+    src.buffer = data;
+    src.loop = true;
+    var gain = ac.createGain();
+    gain.gain.value = 0.5;
+    src.connect(gain).connect(ac.destination);
+    src.start();
+  } catch (e) {}
+}
+addEventListener('pointerdown', startAudio, { once: true });
+
+document.addEventListener('visibilitychange', function () {
+  if (!ac) return;
+  if (document.hidden) ac.suspend(); else ac.resume();
+});
 </script>
 </body>
 </html>
