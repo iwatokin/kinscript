@@ -165,27 +165,43 @@ requestAnimationFrame(frame);
 
 
 // musik latar (Web Audio, tanpa kontrol media di notifikasi)
+var showStatus = false;  // ganti true kalau perlu melihat status audio
 var ac, started = false;
+
+var st = document.createElement('div');
+st.style.cssText = 'position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));' +
+  'z-index:9;text-align:center;font:12px ui-monospace,Menlo,Consolas,monospace;' +
+  'color:rgba(255,255,255,.6);pointer-events:none';
+if (showStatus) document.body.appendChild(st);
+function say(t) { st.textContent = t; }
+say('ketuk layar untuk suara');
 
 function startAudio() {
   if (started) return;
   started = true;
+  say('memuat audio...');
   try {
     ac = new (window.AudioContext || window.webkitAudioContext)();
-    ac.resume();                       // harus dipanggil langsung di dalam event sentuhan
+    ac.resume();                       // harus langsung di dalam event sentuhan
+    ac.onstatechange = keepAlive;
   } catch (e) {
-    console.error('audio: context gagal', e);
+    say('audio gagal: ' + e.message);
     started = false;
     return;
   }
 
   fetch('lib/razor.mp3')
     .then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error('file tidak ditemukan (HTTP ' + r.status + ')');
+      var type = r.headers.get('Content-Type') || '';
+      if (type.indexOf('text/html') === 0) throw new Error('yang diterima halaman HTML, bukan audio');
       return r.arrayBuffer();
     })
     .then(function (buf) {
-      return new Promise(function (ok, err) { ac.decodeAudioData(buf, ok, err); });
+      say('membaca audio...');
+      return new Promise(function (ok, err) {
+        ac.decodeAudioData(buf, ok, function () { err(new Error('format audio tidak terbaca')); });
+      });
     })
     .then(function (data) {
       var src = ac.createBufferSource();
@@ -197,22 +213,30 @@ function startAudio() {
       gain.connect(ac.destination);
       src.start();
       ac.resume();
+      say('audio jalan (' + ac.state + ')');
+      setTimeout(function () { say(''); }, 3000);
     })
     .catch(function (e) {
-      console.error('audio gagal:', e);
-      started = false;                 // coba lagi di sentuhan berikutnya
+      say('audio gagal: ' + e.message + ' - ketuk lagi untuk coba ulang');
+      started = false;
     });
 }
 
-// pointerdown tidak dianggap "izin suara" oleh Chrome di HP, jadi pakai event lain
+// pointerdown tidak dianggap izin suara oleh Chrome di HP, jadi pakai event lain
 ['click', 'touchend', 'keydown'].forEach(function (ev) {
   addEventListener(ev, startAudio);
 });
 
-document.addEventListener('visibilitychange', function () {
-  if (!ac) return;
-  if (document.hidden) ac.suspend(); else ac.resume();
+// kalau audio terhenti oleh sistem (telepon, tab pindah, dll), lanjutkan lagi
+function keepAlive() {
+  if (ac && ac.state !== 'running') ac.resume();
+}
+document.addEventListener('visibilitychange', keepAlive);
+addEventListener('focus', keepAlive);
+['click', 'touchend'].forEach(function (ev) {
+  addEventListener(ev, keepAlive);
 });
+setInterval(keepAlive, 2000);
 </script>
 </body>
 </html>
