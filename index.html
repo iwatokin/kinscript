@@ -165,23 +165,49 @@ requestAnimationFrame(frame);
 
 
 // musik latar (Web Audio, tanpa kontrol media di notifikasi)
-var ac;
-async function startAudio() {
+var ac, started = false;
+
+function startAudio() {
+  if (started) return;
+  started = true;
   try {
     ac = new (window.AudioContext || window.webkitAudioContext)();
-    await ac.resume();
-    var buf = await (await fetch('lib/razor.mp3')).arrayBuffer();
-    var data = await ac.decodeAudioData(buf);
-    var src = ac.createBufferSource();
-    src.buffer = data;
-    src.loop = true;
-    var gain = ac.createGain();
-    gain.gain.value = 0.5;
-    src.connect(gain).connect(ac.destination);
-    src.start();
-  } catch (e) {}
+    ac.resume();                       // harus dipanggil langsung di dalam event sentuhan
+  } catch (e) {
+    console.error('audio: context gagal', e);
+    started = false;
+    return;
+  }
+
+  fetch('lib/razor.mp3')
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.arrayBuffer();
+    })
+    .then(function (buf) {
+      return new Promise(function (ok, err) { ac.decodeAudioData(buf, ok, err); });
+    })
+    .then(function (data) {
+      var src = ac.createBufferSource();
+      src.buffer = data;
+      src.loop = true;
+      var gain = ac.createGain();
+      gain.gain.value = 0.5;
+      src.connect(gain);
+      gain.connect(ac.destination);
+      src.start();
+      ac.resume();
+    })
+    .catch(function (e) {
+      console.error('audio gagal:', e);
+      started = false;                 // coba lagi di sentuhan berikutnya
+    });
 }
-addEventListener('pointerdown', startAudio, { once: true });
+
+// pointerdown tidak dianggap "izin suara" oleh Chrome di HP, jadi pakai event lain
+['click', 'touchend', 'keydown'].forEach(function (ev) {
+  addEventListener(ev, startAudio);
+});
 
 document.addEventListener('visibilitychange', function () {
   if (!ac) return;
