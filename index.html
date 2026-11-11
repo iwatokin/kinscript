@@ -2,10 +2,22 @@
 <html lang="id">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Meta viewport diubah untuk mematikan fitur zoom di browser HP -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>KinScript</title>
 <style>
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: #fff; }
+html, body { 
+  margin: 0; 
+  height: 100%; 
+  background: #000; 
+  overflow: hidden; 
+  color: #fff; 
+  /* Mematikan gestur zoom, scroll, dan double-tap bawaan browser */
+  touch-action: none; 
+  /* Mencegah teks terblok biru saat layar ditekan agak lama */
+  -webkit-user-select: none;
+  user-select: none;
+}
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
 /* Overlay Layar Awal */
@@ -52,6 +64,7 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
 <div id="ghost"><span id="msg"></span></div>
 
+<!-- Huruf kecil semua agar aman di GitHub Pages -->
 <audio id="bgm" src="lib/razor.mp3" loop preload="auto"></audio>
 
 <script src="lib/three.min.js"></script>
@@ -76,7 +89,6 @@ function nextWord() {
     setTimeout(nextWord, tOut + tGap);
   }, tIn + tHold);
 }
-// Pindahkan pemanggilan nextWord() ke dalam fungsi audio agar teks mulai selaras dengan musik
 
 
 // terrain kawat yang terus dilalui kamera
@@ -180,12 +192,11 @@ function frame(now) {
   cam.rotateZ(roll);
   renderer.render(scene, cam);
 }
-// Animasi kawat sudah jalan di belakang layar
 requestAnimationFrame(frame);
 
 
 // ==========================================
-// PENANGANAN AUDIO & INTERAKSI (YANG DIPERBAIKI)
+// PENANGANAN AUDIO & INTERAKSI
 // ==========================================
 var bgm = document.getElementById('bgm');
 var overlay = document.getElementById('start-overlay');
@@ -202,21 +213,20 @@ function startExperience() {
     overlay.style.opacity = '0';
     setTimeout(function() {
       overlay.style.display = 'none';
-      // Mulai memunculkan teks ghost (nice try kid, dll) SETELAH audio jalan
+      // Teks ghost mulai muncul tepat setelah musik jalan
       nextWord();
     }, 500);
   }).catch(function(err) {
     console.warn("Browser menolak play audio:", err);
-    wanted = false; // Reset jika gagal agar bisa diklik lagi
+    wanted = false; // Reset agar layar bisa diklik lagi
   });
 }
 
-// Gunakan 'pointerdown' (lebih akurat dari touch/click) untuk HP dan PC
+// Gunakan pointerdown untuk menangkap tap di HP maupun klik di PC
 overlay.addEventListener('pointerdown', startExperience);
-// Fallback jika pakai keyboard (Enter/Spasi)
 window.addEventListener('keydown', startExperience, { once: true });
 
-// Lanjutkan musik kalau terhenti oleh sistem (misal minimize browser)
+// Pertahankan audio kalau layar sempat mati atau ganti tab
 function keepAlive() {
   if (wanted && bgm.paused) {
     bgm.play().catch(function () {});
