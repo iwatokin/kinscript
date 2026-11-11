@@ -8,6 +8,18 @@
 html, body { margin: 0; height: 100%; background: #000; overflow: hidden; color: #fff; }
 canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 
+/* Overlay Layar Awal */
+#start-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  display: grid; place-items: center;
+  background: #000; color: #fff;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: clamp(1rem, 4vw, 1.5rem);
+  cursor: pointer;
+  letter-spacing: 0.2em;
+  transition: opacity 0.5s ease-out;
+}
+
 #ghost {
   position: fixed; inset: 0; z-index: 5;
   display: grid; place-items: center; padding: 24px;
@@ -34,6 +46,10 @@ canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 </style>
 </head>
 <body>
+
+<!-- Layar Awal untuk memicu Audio -->
+<div id="start-overlay">[ CLICK ANYWHERE TO ENTER ]</div>
+
 <div id="ghost"><span id="msg"></span></div>
 
 <audio id="bgm" src="lib/razor.mp3" loop preload="auto"></audio>
@@ -53,14 +69,14 @@ function nextWord() {
   cur = (cur + 1) % words.length;
   msg.className = '';
   msg.textContent = words[cur];
-  void msg.offsetWidth;            // paksa reflow biar transisi mulai ulang
+  void msg.offsetWidth; // paksa reflow biar transisi mulai ulang
   msg.className = 'show';
   setTimeout(function () {
     msg.className = 'hide';
     setTimeout(nextWord, tOut + tGap);
   }, tIn + tHold);
 }
-nextWord();
+// Pindahkan pemanggilan nextWord() ke dalam fungsi audio agar teks mulai selaras dengan musik
 
 
 // terrain kawat yang terus dilalui kamera
@@ -130,9 +146,10 @@ resize();
 
 var x0 = 0, z0 = 0, heading = 0, roll = 0, camY = 3;
 var prev = performance.now();
+var animId;
 
 function frame(now) {
-  requestAnimationFrame(frame);
+  animId = requestAnimationFrame(frame);
   var dt = Math.min((now - prev) / 1000, .1);
   prev = now;
 
@@ -142,7 +159,7 @@ function frame(now) {
   x0 += Math.sin(heading) * speed * dt;
   z0 -= Math.cos(heading) * speed * dt;
 
-  // grid ikut kamera, dibulatkan ke kelipatan CELL biar tidak bergetar
+  // grid ikut kamera
   var gx = Math.round(x0 / CELL) * CELL, gz = Math.round(z0 / CELL) * CELL;
   var k = 0;
   for (var j = 0; j < V; j++) {
@@ -163,33 +180,50 @@ function frame(now) {
   cam.rotateZ(roll);
   renderer.render(scene, cam);
 }
+// Animasi kawat sudah jalan di belakang layar
 requestAnimationFrame(frame);
 
 
-// musik latar pakai tag audio, diputar loop
+// ==========================================
+// PENANGANAN AUDIO & INTERAKSI (YANG DIPERBAIKI)
+// ==========================================
 var bgm = document.getElementById('bgm');
+var overlay = document.getElementById('start-overlay');
 bgm.volume = 0.5;
-var wanted = false;   // sudah pernah dimulai oleh sentuhan
+var wanted = false; 
 
-function startAudio() {
+function startExperience() {
+  if (wanted) return; // Mencegah double-click
   wanted = true;
-  if (!bgm.paused) return;
-  bgm.play().catch(function () {
-    wanted = false;   // gagal, coba lagi di ketukan berikutnya
+
+  // Play audio
+  bgm.play().then(function() {
+    // Hilangkan teks overlay perlahan
+    overlay.style.opacity = '0';
+    setTimeout(function() {
+      overlay.style.display = 'none';
+      // Mulai memunculkan teks ghost (nice try kid, dll) SETELAH audio jalan
+      nextWord();
+    }, 500);
+  }).catch(function(err) {
+    console.warn("Browser menolak play audio:", err);
+    wanted = false; // Reset jika gagal agar bisa diklik lagi
   });
 }
 
-// Chrome HP butuh gestur pengguna, jadi pakai beberapa event
-['click', 'touchend', 'keydown'].forEach(function (ev) {
-  addEventListener(ev, startAudio);
-});
+// Gunakan 'pointerdown' (lebih akurat dari touch/click) untuk HP dan PC
+overlay.addEventListener('pointerdown', startExperience);
+// Fallback jika pakai keyboard (Enter/Spasi)
+window.addEventListener('keydown', startExperience, { once: true });
 
-// kalau terhenti oleh sistem (telepon, pindah tab), lanjutkan lagi
+// Lanjutkan musik kalau terhenti oleh sistem (misal minimize browser)
 function keepAlive() {
-  if (wanted && bgm.paused) bgm.play().catch(function () {});
+  if (wanted && bgm.paused) {
+    bgm.play().catch(function () {});
+  }
 }
 document.addEventListener('visibilitychange', keepAlive);
-addEventListener('focus', keepAlive);
+window.addEventListener('focus', keepAlive);
 </script>
 </body>
 </html>
